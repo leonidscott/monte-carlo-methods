@@ -6,6 +6,12 @@ import numpy as np
 import scipy.stats as stats
 from scipy.stats import gaussian_kde
 
+
+# Base seed can be overridden for reproducibility via MC_BASE_SEED.
+# Needs to be in a callable module, TODO: Move to utils module
+BASE_SEED = int(__import__("os").environ.get("MC_BASE_SEED", "20250227"))
+SAMPLER_RNG = {"pid": None, "rng": None}
+
 T = TypeVar("T")
 def monte_carlo(*args) -> Tuple[float, float]:
     if len(args) == 3:
@@ -131,10 +137,16 @@ def control_variate(lf: Fn[Tcv], hf: Fn[Tcv],
 
     # 2. Calculate lf and hf on N_high
     #print("  Calculating lf and hf on N_high")
-    [_, hf_evals] = calc_evals(hf, N_high)
+    hf_samples = (pseq(range(N_high)).map(lambda _: sampler()).to_list())
+    hf_evals = (pseq(hf_samples).map(hf).to_list())
+    lf_evals = (pseq(hf_samples).map(lf).to_list())
     [hf_exp, hf_var] = monte_carlo(hf_evals)
-    [_, lf_evals] = calc_evals(lf, N_high)
     [lf_exp, lf_var] = monte_carlo(lf_evals)
+
+    #[_, hf_evals] = calc_evals(hf, N_high)
+    #[hf_exp, hf_var] = monte_carlo(hf_evals)
+    #[_, lf_evals] = calc_evals(lf, N_high)
+    #[lf_exp, lf_var] = monte_carlo(lf_evals)
 
     # 3. Calc Covariance
     #print("  Calculating covariance")
