@@ -37,7 +37,8 @@ class MC_Metric(TypedDict):
     exp: float
     var: float
     rmse: float
-def plot_mc_metrics(mc_metrics: List[dict]) -> None:
+
+def plot_mc_metrics(mc_metrics: List[dict], title) -> None:
     # Lol no better way to do destructuring on a dictionary grrr
     list(map(lambda el: cast(MC_Metric, el), mc_metrics))
     def get_all(key):
@@ -52,7 +53,7 @@ def plot_mc_metrics(mc_metrics: List[dict]) -> None:
     plt.ylabel("Metric")
     plt.yscale("log")
     plt.legend()
-    plt.title("Convergence of MC method for anlaytical model")
+    plt.title(title)
 
 
 def plot_kde(f_vals,kde_vals):
