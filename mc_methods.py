@@ -121,25 +121,23 @@ def control_variate(lf: Fn[Tcv], hf: Fn[Tcv],
                     N_low: int, N_high: int,
                     sampler: Callable[[], Tcv]) -> Tuple[List[float], List[float]]:
     # 1. Take N_low samples to build expectation of hl
-    def calc_evals(f,N) -> Tuple[List[float], List[float]]:
-        #print("  -> creating samples")
-        samples = (pseq(range(N)).map(lambda _: sampler()).to_list())
-        #print("  -> creating evals")
+    def calc_evals(f,samples) -> Tuple[List[float], List[float]]:
         if f.kind == "scalar":
             evals = (pseq(samples).map(lambda x: f(x)).to_list())
         else:
             evals = f(samples)
-        return samples, evals
+        return evals
     #print("  Calculating lf and hf on N_low")
-    [_, evals] = calc_evals(lf, N_low)
+    lf_samples = (pseq(range(N_low)).map(lambda _: sampler()).to_list())
+    evals = calc_evals(lf, lf_samples)
     #print("  Calculating f_bar")
     [ftild_bar, _] = monte_carlo(evals)
 
     # 2. Calculate lf and hf on N_high
     #print("  Calculating lf and hf on N_high")
     hf_samples = (pseq(range(N_high)).map(lambda _: sampler()).to_list())
-    hf_evals = (pseq(hf_samples).map(hf).to_list())
-    lf_evals = (pseq(hf_samples).map(lf).to_list())
+    hf_evals = calc_evals(hf, hf_samples)
+    lf_evals = calc_evals(lf, hf_samples)
     [hf_exp, hf_var] = monte_carlo(hf_evals)
     [lf_exp, lf_var] = monte_carlo(lf_evals)
 
