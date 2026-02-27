@@ -88,13 +88,11 @@ def truncate_model(evals: List[float], K: int) -> List[float]:
     # Inverse Transform
     return sfft.irfft(trunc, n=length, workers=-1)
 
+
 if __name__ == "__main__":
     # Problem 1: ========================================
     print(os.cpu_count())
 
-    # Base seed can be overridden for reproducibility via MC_BASE_SEED.
-    _BASE_SEED = int(__import__("os").environ.get("MC_BASE_SEED", "20250227"))
-    _SAMPLER_RNG = {"pid": None, "rng": None}
     def sampler() -> Tuple[float, float, float]:
         """Parallel-safe normal sampler.
 
@@ -104,14 +102,16 @@ if __name__ == "__main__":
         """
         import os
         import numpy as np
+        # HACK: Add base seed and sampler rng to a utils module
+        from mc_methods import BASE_SEED, SAMPLER_RNG
 
         pid = os.getpid()
-        if _SAMPLER_RNG["pid"] != pid or _SAMPLER_RNG["rng"] is None:
-            seed_seq = np.random.SeedSequence([_BASE_SEED, pid])
-            _SAMPLER_RNG["pid"] = pid
-            _SAMPLER_RNG["rng"] = np.random.default_rng(seed_seq)
+        if SAMPLER_RNG["pid"] != pid or SAMPLER_RNG["rng"] is None:
+            seed_seq = np.random.SeedSequence([BASE_SEED, pid])
+            SAMPLER_RNG["pid"] = pid
+            SAMPLER_RNG["rng"] = np.random.default_rng(seed_seq)
 
-        draws = _SAMPLER_RNG["rng"].normal(loc=0.0, scale=1.0, size=3)
+        draws = SAMPLER_RNG["rng"].normal(loc=0.0, scale=1.0, size=3)
         return float(draws[0]), float(draws[1]), float(draws[2])
     model = partial(analytical_model, theta=(2.0,0.3))
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     #plt.title("Analytical Models of various fidelity")
     #plt.show()
 
-    print("Control Variate")
+    #print("Control Variate")
     @vector
     def lf(samples: Tuple[float, float, float]) -> List[float]:
         pure_evals = pseq(samples).map(model).to_list()
@@ -156,18 +156,33 @@ if __name__ == "__main__":
 
     model.kind = "scalar"
 
-    N_high= Ns
-    N_low = list(map(lambda n : n*100, N_high))
-    def cv_rmse(N,M):
-        def rcv(M):
-            [exp, _, alpha] = mc.control_variate(lf, model, N*100, N, sampler)
-            print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N, 'alpha':alpha})
-            return exp
-        exps = list(map(rcv, range(M)))
-        return exps
-    cv_rmses = list(map(partial(cv_rmse, M=50), N_high))
+    #N_high= Ns
+    #N_low = list(map(lambda n : n*100, N_high))
+    #def cv_rmse(N,M):
+    #    def rcv(M):
+    #        [exp, _, alpha] = mc.control_variate(lf, model, N*100, N, sampler)
+    #        print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N, 'alpha':alpha})
+    #        return exp
+    #    exps = list(map(rcv, range(M)))
+    #    return exps
+    #cv_rmses = list(map(partial(cv_rmse, M=50), N_high))
 
     # Problem 3: =======================================
+    print("Multi Level Monte Carlo")
+    @vector
+    def midf(samples: Tuple[float, float, float]) -> List[float]:
+        pure_evals = pseq(samples).map(model).to_list()
+        return truncate_model(pure_evals, K=10)
 
+    fns = [lf, midf, model]
+    def mlmc(N,M):
+        def run_mlmc(M):
+            Nvec = [N, N*10, N*100]
+            exp = mc.multi_level(fns, Nvec,sampler)
+            print({'N':N, 'M':M, 'exp':exp, 'N_vec': Nvec})
+            return exp
+        exps = list(map(run_mlmc, range(M)))
+        return exps
+    cv_rmses = list(map(partial(mlmc, M=50), Ns))
 
     plt.show()

@@ -119,7 +119,7 @@ Tcv = TypeVar("Tcv") # Tcv -> Type Control Variate
 # TODO: Make sampler optional
 def control_variate(lf: Fn[Tcv], hf: Fn[Tcv],
                     N_low: int, N_high: int,
-                    sampler: Callable[[], Tcv]) -> Tuple[List[float], List[float]]:
+                    sampler: Callable[[], Tcv]) -> Tuple[float, float, float]:
     # 1. Take N_low samples to build expectation of hl
     def calc_evals(f,samples) -> Tuple[List[float], List[float]]:
         if f.kind == "scalar":
@@ -140,11 +140,6 @@ def control_variate(lf: Fn[Tcv], hf: Fn[Tcv],
     lf_evals = calc_evals(lf, hf_samples)
     [hf_exp, hf_var] = monte_carlo(hf_evals)
     [lf_exp, lf_var] = monte_carlo(lf_evals)
-
-    #[_, hf_evals] = calc_evals(hf, N_high)
-    #[hf_exp, hf_var] = monte_carlo(hf_evals)
-    #[_, lf_evals] = calc_evals(lf, N_high)
-    #[lf_exp, lf_var] = monte_carlo(lf_evals)
 
     # 3. Calc Covariance
     #print("  Calculating covariance")
@@ -185,3 +180,27 @@ def control_variate(lf: Fn[Tcv], hf: Fn[Tcv],
 #     3. Make recurrence relation, and build N_opt = [N0, N1_opt, ...]
 #     4. Build expectation
 #     5. Build variance
+
+def multi_level(f: List[Fn[Tcv]], N: List[int], sampler) -> float:
+
+    def calc_evals(f,samples) -> Tuple[List[float], List[float]]:
+        if f.kind == "scalar":
+            evals = (pseq(samples).map(lambda x: f(x)).to_list())
+        else:
+            evals = f(samples)
+        return evals
+
+    # Calc Exp[f0]
+    l0_samples = (pseq(range(N[0])).map(lambda _: sampler()).to_list())
+    [exp_l0,_] = monte_carlo(calc_evals(f[0], l0_samples))
+
+    # Calc Exp[flvl]
+    def lce(lvl: int) -> float: # Level Comparison Expectation E(f[lvl]-f[lvl-1])
+        samples = (pseq(range(N[lvl])).map(lambda _: sampler()).to_list())
+        fl_evals = calc_evals(f[lvl], samples)
+        flm1_evals = calc_evals(f[lvl-1], samples)
+        return 1/N[lvl] * (pseq(range(N[lvl]))
+                           .map(lambda i : fl_evals[i] - flm1_evals[i])
+                           .sum())
+
+    return exp_l0 + seq(range(1,(len(N)))).map(lce).sum()
