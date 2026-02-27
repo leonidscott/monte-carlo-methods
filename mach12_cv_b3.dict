@@ -242,3 +242,8 @@ Control Variate
 {'N': 100000, 'M': 39, 'exp': np.float32(2.0117514), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(0.99998325)}
 {'N': 100000, 'M': 40, 'exp': np.float32(2.0122163), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(0.9999751)}
 {'N': 100000, 'M': 41, 'exp': np.float32(2.0117376), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(1.000016)}
+{'N': 100000, 'M': 42, 'exp': np.float32(2.0250165), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(1.0000033)}
+{'N': 100000, 'M': 43, 'exp': np.float32(2.0117846), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(1.0000002)}
+{'N': 100000, 'M': 44, 'exp': np.float32(2.0121882), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(0.99999297)}
+{'N': 100000, 'M': 45, 'exp': np.float32(2.0117736), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(1.000005)}
+{'N': 100000, 'M': 46, 'exp': np.float32(2.012338), 'Nlow': 10000000, 'Nhigh': 100000, 'alpha': np.float32(1.0000093)}
