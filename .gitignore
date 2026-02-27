@@ -1,0 +1,7 @@
+# Python
+.DS_Store
+__pycache__/
+
+#IDE
+.#*
+*.swp

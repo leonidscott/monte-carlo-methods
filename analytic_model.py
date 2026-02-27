@@ -1,0 +1,153 @@
+from functional import seq,pseq
+from functools import partial
+from typing import Tuple, List, TypedDict, TypedDict, cast, Any, Union
+
+import matplotlib.pyplot as plt
+
+import math
+import mc_methods
+import numpy as np
+import numpy.fft as fft
+from scipy import fft as sfft
+
+# Local Deps
+def set_cwd():
+    import sys
+    import os
+    sys.path.insert(1, os.path.dirname(__file__))
+set_cwd()
+import mc_methods as mc
+from mc_methods import scalar, vector
+# Local Deps
+
+# Problem 1:
+@scalar
+def analytical_model(X: Tuple[float, float, float],
+                     theta: Tuple[float, float]) -> float:
+    import math #For Parallel Execution (LOL Python is stupid)
+    [alpha, beta] = theta
+    return math.log(1.0 + math.exp(alpha*(X[0] + X[2]))) * math.exp(beta * X[1]**2)
+
+def rmse(var, N):
+    return var/math.sqrt(N)
+
+class MC_Metric(TypedDict):
+    N: int
+    exp: float
+    var: float
+    rmse: float
+def plot_mc_metrics(mc_metrics: List[dict]) -> None:
+    # Lol no better way to do destructuring on a dictionary grrr
+    list(map(lambda el: cast(MC_Metric, el), mc_metrics))
+    def get_all(key):
+        return list(map(lambda met: met[key], mc_metrics))
+    Ns = get_all("N")
+
+    plt.figure()
+    plt.plot(Ns, get_all("exp"), label="Expectation")
+    plt.plot(Ns, get_all("var"), label="Variance")
+    plt.plot(Ns, get_all("rmse"), label="RMSE")
+    plt.xlabel("N")
+    plt.ylabel("Metric")
+    plt.yscale("log")
+    plt.legend()
+    plt.title("Convergence of MC method for anlaytical model")
+
+
+def plot_kde(f_vals,kde_vals):
+    plt.figure()
+    plt.plot(f_vals, kde_vals)
+    plt.xlabel("f(x)")
+    plt.ylabel("KDE: p(f(x))")
+    plt.title("KDE")
+
+def plot_rmse(title, Ns, *rmses):
+    plt.figure()
+    for rmse in rmses:
+        plt.plot(Ns, rmse['rmse'], label=rmse['label'])
+    plt.xlabel("N")
+    plt.ylabel("RMSE")
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.legend()
+    plt.title(title)
+
+
+# Problem 2:
+@vector
+def truncate_model(evals: List[float], K: int) -> List[float]:
+    length = len(evals)
+    evals = np.asarray(evals, dtype=np.float32)
+
+    # Fourier Transform + Truncation
+    fevals = sfft.rfft(evals, workers=-1)
+
+    trunc = np.zeros_like(fevals)
+    trunc[:K+1] = fevals[:K+1]
+    # Inverse Transform
+    return sfft.irfft(trunc, n=length, workers=-1)
+
+if __name__ == "__main__":
+    # Problem 1: ========================================
+    def sampler() -> Tuple[float, float, float]:
+        import scipy.stats as stats # Necessary for sampler() to work in parallel
+        dist = stats.norm(loc=0.0, scale=1.0) # ~N(0.0,1.0)
+        return dist.rvs(), dist.rvs(), dist.rvs()
+    model = partial(analytical_model, theta=(2.0,-0.3))
+
+    # A) Plot exp, var, rmse as N increases
+    #print("MC Plain")
+    Ns = [10,100,1000,10000,100000]
+    #def mc_rmse(N,M):
+    #    def rmc(M):
+    #        [exp, _] = mc.monte_carlo(model, sampler, N)
+    #        print({'N':N, 'M':M, 'exp':exp})
+    #        return exp
+    #    exps = list(map(rmc, range(M)))
+    #    return exps
+    #mc_rmses = list(map(partial(mc_rmse, M=50), Ns))
+
+    # KDE Plot
+    #[pdf_in, pdf_out] = mc.kde(model, sampler, 1000)
+    #[pdf_in2, pdf_out2] = mc.mykde(model, sampler, 1000)
+    #plot_kde(pdf_in, pdf_out)
+    #plot_kde(pdf_in2, pdf_out2)
+
+    # Problem 2: =======================================
+    #x0_vals = np.linspace(-5,5,200)
+    #x_vals = seq(x0_vals).map(lambda x0: [x0, 1.0, 1.0]).to_list()
+    #pure_evals = pseq(x_vals).map(model).to_list()
+    #truc_evals = truncate_model(pure_evals, K=5)
+    #print("trunc_evals: ", truc_evals[0])
+
+    #plt.figure()
+    #plt.plot(x0_vals, pure_evals, label="True Model")
+    #plt.plot(x0_vals, truc_evals, label="Trunc K=5")
+    #plt.xlabel("x0")
+    #plt.ylabel("model")
+    #plt.title("Analytical Models of various fidelity")
+    #plt.show()
+
+    print("Control Variate")
+    @vector
+    def lf(samples: Tuple[float, float, float]) -> List[float]:
+        pure_evals = pseq(samples).map(model).to_list()
+        return truncate_model(pure_evals, K=5)
+
+    model.kind = "scalar"
+
+    N_high= Ns
+    N_low = list(map(lambda n : n*100, N_high))
+    def cv_rmse(N,M):
+        def rcv(M):
+            [exp, _] = mc.control_variate(lf, model, N*100, N, sampler)
+            print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N})
+            return exp
+        exps = list(map(rcv, range(M)))
+        return exps
+    cv_rmses = list(map(partial(cv_rmse, M=50), N_high))
+
+    # Problem 3: =======================================
+
+
+    plt.show()
