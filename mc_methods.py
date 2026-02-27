@@ -162,7 +162,7 @@ def control_variate(lf: Fn[Tcv], hf: Fn[Tcv],
     # 7. Calc Gvar
     #print("  Calculating gvar")
     gvar = hf_var - 2*alpha*cov + alpha**2 * lf_var
-    return [gbar, gvar]
+    return [gbar, gvar, alpha]
 
 # def mult-level(fs=[f0,f1,...], Ns=[N0,N1,...], C=[C0,C1,...]):
 #     1. Step 1: For all submodels (f1,..fS), calculate expected values using (N1,...,NS)

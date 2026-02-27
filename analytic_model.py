@@ -9,6 +9,7 @@ import mc_methods
 import numpy as np
 import numpy.fft as fft
 from scipy import fft as sfft
+import os
 
 # Local Deps
 def set_cwd():
@@ -89,11 +90,30 @@ def truncate_model(evals: List[float], K: int) -> List[float]:
 
 if __name__ == "__main__":
     # Problem 1: ========================================
+    print(os.cpu_count())
+
+    # Base seed can be overridden for reproducibility via MC_BASE_SEED.
+    _BASE_SEED = int(__import__("os").environ.get("MC_BASE_SEED", "20250227"))
+    _SAMPLER_RNG = {"pid": None, "rng": None}
     def sampler() -> Tuple[float, float, float]:
-        import scipy.stats as stats # Necessary for sampler() to work in parallel
-        dist = stats.norm(loc=0.0, scale=1.0) # ~N(0.0,1.0)
-        return dist.rvs(), dist.rvs(), dist.rvs()
-    model = partial(analytical_model, theta=(2.0,-0.3))
+        """Parallel-safe normal sampler.
+
+        Each process lazily initializes its own RNG using a SeedSequence that
+        mixes a base seed with the process id, so forked workers do not reuse
+        identical RNG state.
+        """
+        import os
+        import numpy as np
+
+        pid = os.getpid()
+        if _SAMPLER_RNG["pid"] != pid or _SAMPLER_RNG["rng"] is None:
+            seed_seq = np.random.SeedSequence([_BASE_SEED, pid])
+            _SAMPLER_RNG["pid"] = pid
+            _SAMPLER_RNG["rng"] = np.random.default_rng(seed_seq)
+
+        draws = _SAMPLER_RNG["rng"].normal(loc=0.0, scale=1.0, size=3)
+        return float(draws[0]), float(draws[1]), float(draws[2])
+    model = partial(analytical_model, theta=(2.0,0.3))
 
     # A) Plot exp, var, rmse as N increases
     #print("MC Plain")
@@ -140,8 +160,8 @@ if __name__ == "__main__":
     N_low = list(map(lambda n : n*100, N_high))
     def cv_rmse(N,M):
         def rcv(M):
-            [exp, _] = mc.control_variate(lf, model, N*100, N, sampler)
-            print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N})
+            [exp, _, alpha] = mc.control_variate(lf, model, N*100, N, sampler)
+            print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N, 'alpha':alpha})
             return exp
         exps = list(map(rcv, range(M)))
         return exps
