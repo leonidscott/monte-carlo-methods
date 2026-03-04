@@ -1,4 +1,7 @@
+from pprint import pprint
+from operator import itemgetter
 from functools import partial
+from functional import seq
 from typing import Tuple
 import os
 
@@ -47,27 +50,45 @@ if __name__ == "__main__":
     #[pdf_in, pdf_out] = mc.mykde(hf, sampler_B, 1000)
     #plots.plot_kde(pdf_in, pdf_out)
 
-    # A) Plot RMSE as N incrases
-    #def mc_rmse(N,M):
-    #    def rmc(M):
-    #        [exp, _] = mc.monte_carlo(hf, sampler_B, N)
-    #        print({'N':N, 'M':M, 'exp':exp})
-    #        return exp
-    #    exps = list(map(rmc, range(M)))
-    #    return exps
-    #mc_rmses = list(map(partial(mc_rmse, M=50), Ns))
-    #plt.show()
+    # C) Plot RMSE as N incrases
+    def mc_rmse(N,M):
+        def rmc(M):
+            [exp, var] = mc.monte_carlo(hf, sampler_B, N)
+            momes = {'N':N, 'M':M, 'exp':exp, 'var':var, 'rmse':plots.rmse(var,N)}
+            print(momes)
+            return momes
+        exps = list(map(rmc, range(M)))
+        return exps
+    mc_momes= list(map(partial(mc_rmse, M=10), Ns))
+
+    # clean data for plot
+    mc_momes_by_m = (
+        seq(mc_momes)
+        .flatten()                                # flatten nested lists
+        .group_by(itemgetter("M"))                # group by M
+        .map(lambda gby : gby[1])                 # discard keys (M)
+        .map(lambda group:
+             seq(group)
+             .sorted(key=itemgetter("N"))         # sort each group by N
+             .to_list()
+        )
+        .sorted(key=lambda group: group[0]["M"])  # sort groups by M
+        .to_list()
+    )
+    print("")
+    pprint(mc_momes_by_m)
+    plots.plot_many_metrics(mc_momes_by_m, "Numberical Model")
 
     # Problem 2: =======================================
-    print("Control Variates")
-    def cv_rmse(N,M):
-        def rcv(M):
-            [exp, _, alpha] = mc.control_variate(lf, hf, N*100+1, N+1, sampler_B)
-            print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N, 'alpha':alpha})
-            return exp
-        exps = list(map(rcv, range(M)))
-        return exps
-    cv_rmses = list(map(partial(cv_rmse, M=50), Ns))
+    #print("Control Variates")
+    #def cv_rmse(N,M):
+    #    def rcv(M):
+    #        [exp, _, alpha] = mc.control_variate(lf, hf, N*100+1, N+1, sampler_B)
+    #        print({'N':N, 'M':M, 'exp':exp, 'Nlow' : N*100, 'Nhigh' : N, 'alpha':alpha})
+    #        return exp
+    #    exps = list(map(rcv, range(M)))
+    #    return exps
+    #cv_rmses = list(map(partial(cv_rmse, M=50), Ns))
 
     # Problem 3: =======================================
     #print("Multi Level Monte Carlo")
@@ -81,6 +102,6 @@ if __name__ == "__main__":
     #        return exp
     #    exps = list(map(run_mlmc, range(M)))
     #    return exps
-    #cv_rmses = list(map(partial(mlmc, M=50), [10,100,1000,10000]))
-
+    #cv_rmses = list(map(partial(mlmc, M=50), [100000]))
+    plt.show()
 

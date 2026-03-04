@@ -3,6 +3,7 @@ import ast
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
+from functional import seq
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 
@@ -30,9 +31,10 @@ def group(flat_data):
         grouped_dict[d["N"]].append(d)
     return [grouped_dict[N] for N in unique_N]
 
+def get_all(d,key):
+    return list(map(lambda met: met[key], d))
+
 def calc_fbar(run):
-    def get_all(d,key):
-        return list(map(lambda met: met[key], d))
     exps = get_all(run, 'exp')
     return np.sqrt(np.var(exps, ddof=1))
 
@@ -54,9 +56,26 @@ def plot_rmse(title, Ns, *rmses):
 
 
 if __name__ == "__main__":
-    [mc_N, mc_runs] = read_dictionary_file("out/mc_rmse.dict")
+    # MC
+    [mc_N, mc_runs] = read_dictionary_file("out/mc_b3.dict")
     mc_var = list(map(calc_fbar, mc_runs))
-    print(mc_var)
-    plot_rmse("RMSE, beta=-0.3", mc_N,
-              {'rmse' : mc_var, 'label':"Monte Carlo"})
+
+    # CV
+    [cv_N, cv_runs] = read_dictionary_file("out/cv_b3_alpha_p10.dict")
+    #alphas = (seq(cv_runs)
+    #          .map(lambda run: get_all(run, 'alpha'))
+    #          .flatten()
+    #          .to_list())
+    #print(np.mean(alphas))
+    cv_var = list(map(calc_fbar, cv_runs))
+
+    # MLMC
+    #[mlmc_N, mlmc_runs] = read_dictionary_file("out/mlmc_b3_higher_k.dict")
+    #mlmc_var = list(map(calc_fbar, mlmc_runs))
+
+    plot_rmse("RMSE Analytical Beta=0.3: alpha* + 1.0", mc_N,
+              {'rmse' : mc_var, 'label':"Monte-Carlo"},
+              {'rmse' : cv_var, 'label':"Control Variate"}
+              #{'rmse' : mlmc_var, 'label' : "Multi-Level Monte-Carlo"}
+              )
     plt.show()

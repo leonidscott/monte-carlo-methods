@@ -1,8 +1,11 @@
+from pprint import pprint
+from operator import itemgetter
 from functional import seq,pseq
 from functools import partial
 from typing import Tuple, List, TypedDict, TypedDict, cast, Any, Union
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 import math
 import mc_methods
@@ -38,6 +41,9 @@ class MC_Metric(TypedDict):
     var: float
     rmse: float
 
+def get_all(d, key):
+    return list(map(lambda met: met[key], d))
+
 def plot_mc_metrics(mc_metrics: List[dict], title) -> None:
     # Lol no better way to do destructuring on a dictionary grrr
     list(map(lambda el: cast(MC_Metric, el), mc_metrics))
@@ -55,13 +61,35 @@ def plot_mc_metrics(mc_metrics: List[dict], title) -> None:
     plt.legend()
     plt.title(title)
 
+def plot_many_metrics(runs, title) -> None:
+    plt.figure()
 
-def plot_kde(f_vals,kde_vals):
+    # Generate distinct colors for each run (each M)
+    colors = cm.tab10(np.linspace(0, 1, len(runs)))
+
+    for i, run in enumerate(runs):
+        Ns = get_all(run, 'N')
+
+        # Only label metrics once (for legend clarity)
+        label_exp  = "Expectation" if i == 0 else None
+        label_var  = "Variance"    if i == 0 else None
+        label_rmse = "RMSE"        if i == 0 else None
+
+        plt.plot(Ns, get_all(run, "exp"), color=colors[i], linestyle='-', label=label_exp)
+        plt.plot(Ns, get_all(run, "var"), color=colors[i], linestyle='--', label=label_var)
+        plt.plot(Ns, get_all(run, "rmse"), color=colors[i], linestyle=':', label=label_rmse)
+    plt.xlabel("N")
+    plt.ylabel("Metric")
+    plt.yscale("log")
+    plt.legend()
+    plt.title(title)
+
+def plot_kde(f_vals,kde_vals,title="KDE"):
     plt.figure()
     plt.plot(f_vals, kde_vals)
     plt.xlabel("f(x)")
     plt.ylabel("KDE: p(f(x))")
-    plt.title("KDE")
+    plt.title(title)
 
 def plot_rmse(title, Ns, *rmses):
     plt.figure()
@@ -114,40 +142,57 @@ if __name__ == "__main__":
 
         draws = SAMPLER_RNG["rng"].normal(loc=0.0, scale=1.0, size=3)
         return float(draws[0]), float(draws[1]), float(draws[2])
-    model = partial(analytical_model, theta=(2.0,0.3))
+    model = partial(analytical_model, theta=(2.0,-0.3))
 
     # A) Plot exp, var, rmse as N increases
     #print("MC Plain")
-    Ns = [10,100,1000,10000,100000]
+    #Ns = [10,100,1000,10000,100000]
     #def mc_rmse(N,M):
     #    def rmc(M):
-    #        [exp, _] = mc.monte_carlo(model, sampler, N)
-    #        print({'N':N, 'M':M, 'exp':exp})
-    #        return exp
+    #        [exp, var] = mc.monte_carlo(model, sampler, N)
+    #        momes = {'N':N, 'M':M, 'exp':exp,'var': var, 'rmse' : rmse(var,N)}
+    #        print(momes)
+    #        return momes
     #    exps = list(map(rmc, range(M)))
     #    return exps
-    #mc_rmses = list(map(partial(mc_rmse, M=50), Ns))
+    #mc_momes= list(map(partial(mc_rmse, M=10), Ns))
+
+    ## clean data for plot
+    #mc_momes_by_m = (
+    #    seq(mc_momes)
+    #    .flatten()                                # flatten nested lists
+    #    .group_by(itemgetter("M"))                # group by M
+    #    .map(lambda gby : gby[1])                 # discard keys (M)
+    #    .map(lambda group:
+    #         seq(group)
+    #         .sorted(key=itemgetter("N"))         # sort each group by N
+    #         .to_list()
+    #    )
+    #    .sorted(key=lambda group: group[0]["M"])  # sort groups by M
+    #    .to_list()
+    #)
+    #print("")
+    #pprint(mc_momes_by_m)
+    #plot_many_metrics(mc_momes_by_m, "Analytical Model - Beta = -0.3")
 
     # KDE Plot
     #[pdf_in, pdf_out] = mc.kde(model, sampler, 1000)
     #[pdf_in2, pdf_out2] = mc.mykde(model, sampler, 1000)
     #plot_kde(pdf_in, pdf_out)
-    #plot_kde(pdf_in2, pdf_out2)
+    #plot_kde(pdf_in2, pdf_out2, "KDE Analytical Solution")
 
     # Problem 2: =======================================
     #x0_vals = np.linspace(-5,5,200)
     #x_vals = seq(x0_vals).map(lambda x0: [x0, 1.0, 1.0]).to_list()
     #pure_evals = pseq(x_vals).map(model).to_list()
-    #truc_evals = truncate_model(pure_evals, K=5)
-    #print("trunc_evals: ", truc_evals[0])
+    #truc_evals = truncate_model(pure_evals, K=15)
 
     #plt.figure()
     #plt.plot(x0_vals, pure_evals, label="True Model")
     #plt.plot(x0_vals, truc_evals, label="Trunc K=5")
     #plt.xlabel("x0")
     #plt.ylabel("model")
-    #plt.title("Analytical Models of various fidelity")
-    #plt.show()
+    #plt.title("Fourier Truncation of Analytical Model: K=15")
 
     #print("Control Variate")
     @vector
@@ -169,21 +214,21 @@ if __name__ == "__main__":
     #cv_rmses = list(map(partial(cv_rmse, M=50), N_high))
 
     # Problem 3: =======================================
-    print("Multi Level Monte Carlo")
-    @vector
-    def midf(samples: Tuple[float, float, float]) -> List[float]:
-        pure_evals = pseq(samples).map(model).to_list()
-        return truncate_model(pure_evals, K=10)
+    #print("Multi Level Monte Carlo")
+    #@vector
+    #def midf(samples: Tuple[float, float, float]) -> List[float]:
+    #    pure_evals = pseq(samples).map(model).to_list()
+    #    return truncate_model(pure_evals, K=10)
 
-    fns = [lf, midf, model]
-    def mlmc(N,M):
-        def run_mlmc(M):
-            Nvec = [N, N*10, N*100]
-            exp = mc.multi_level(fns, Nvec,sampler)
-            print({'N':N, 'M':M, 'exp':exp, 'N_vec': Nvec})
-            return exp
-        exps = list(map(run_mlmc, range(M)))
-        return exps
-    cv_rmses = list(map(partial(mlmc, M=50), Ns))
+    #fns = [lf, midf, model]
+    #def mlmc(N,M):
+    #    def run_mlmc(M):
+    #        Nvec = [N, N*10, N*100]
+    #        exp = mc.multi_level(fns, Nvec,sampler)
+    #        print({'N':N, 'M':M, 'exp':exp, 'N_vec': Nvec})
+    #        return exp
+    #    exps = list(map(run_mlmc, range(M)))
+    #    return exps
+    #cv_rmses = list(map(partial(mlmc, M=50), Ns))
 
     plt.show()
